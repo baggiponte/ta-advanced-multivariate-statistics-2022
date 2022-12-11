@@ -47,7 +47,7 @@ class GMMExperiment:
         self._coloriter = itertools.cycle(self._colormap)
         self._figsize = kwargs.pop("figsize", (12, 12))
 
-    def _bic_get(self, return_best_params: bool = True, **kwargs):
+    def _get_bic(self, return_best_params: bool = True, **kwargs):
         """Compute the BIC of an individual combination of hyperparameters."""
 
         n_components = kwargs.pop("n_components", None)
@@ -72,12 +72,12 @@ class GMMExperiment:
             return n_components, covariance_type, bic
         return bic
 
-    def bics_get(self) -> pd.DataFrame:
+    def get_bics(self) -> pd.DataFrame:
         """Return an ordered DataFrame of BIC scores computed using the
         Experiment's n_components range."""
 
         results = [
-            self._bic_get(
+            self._get_bic(
                 data=self.data,
                 return_best_params=True,
                 n_components=comp,
@@ -95,8 +95,12 @@ class GMMExperiment:
 
         return self._params
 
-    def bics_plot_(self) -> None:
-        """Just see here: https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html#sphx-glr-auto-examples-mixture-plot-gmm-selection-py
+    def plot_bics_(self) -> None:
+        """Builds a barplot of the BIC score of the combinations of components and
+        covariance types.
+
+        Reference:
+        > https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html#sphx-glr-auto-examples-mixture-plot-gmm-selection-py
 
         Can/should/must be optimised.
         """
@@ -134,7 +138,7 @@ class GMMExperiment:
         spl.set_xlabel("Number of components")
         spl.legend([b[0] for b in bars], self._covariances)
 
-    def best_params_get_(self) -> dict[str, str | int]:
+    def get_best_params_(self) -> dict[str, str | int]:
         """Get the best parameters to fit a new model."""
         if self._state == "clear":
             raise NotFittedError("call 'get_bics' before this")
@@ -143,13 +147,13 @@ class GMMExperiment:
 
         return self._best_params
 
-    def best_model_get_(self) -> Pipeline:
+    def get_best_model_(self) -> Pipeline:
         """Fit the best GMM chosen using the BIC criterion."""
         if self._state == "clear":
             raise NotFittedError("call 'get_bics' before this")
 
         if self._best_params is None:
-            self.best_params_get_()
+            self.get_best_params_()
 
         best_model = GaussianMixture(
             n_components=self._best_params.get("n_components"),
