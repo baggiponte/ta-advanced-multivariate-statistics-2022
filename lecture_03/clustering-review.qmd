@@ -1,0 +1,424 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .qmd
+      format_name: quarto
+      format_version: '1.0'
+      jupytext_version: 1.14.2
+  kernelspec:
+    display_name: Python 3
+    name: python3
+    language: python
+---
+
+# Advanced Multivariate Statistics
+# Lecture 3 - Clustering Review and Model Based Clustering
+
+![clustering-families](https://scikit-learn.org/stable/_images/sphx_glr_plot_cluster_comparison_001.png)
+
+```{python}
+#| id: ac1ijiMbcE3a
+#| id: ac1ijiMbcE3a
+from sklearn import set_config
+set_config(display='diagram')
+```
+
+# The data
+
+![palmer-penguins](https://camo.githubusercontent.com/1d187452ac3929cfde8f5760b79f37cc117c1a332227d37a8c50db50d3db632a/68747470733a2f2f616c6c69736f6e686f7273742e6769746875622e696f2f70616c6d657270656e6775696e732f7265666572656e63652f666967757265732f6c7465725f70656e6775696e732e706e67)
+
+```{python}
+#| id: fhDdbuoOZjLr
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 1262, status: ok, timestamp: 1669652818768, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: fhDdbuoOZjLr
+#| outputId: 0c561f9b-6a1e-427e-af55-dfea734cab92
+import pandas as pd
+
+penguins_raw = (
+    pd.read_csv("https://raw.githubusercontent.com/allisonhorst/palmerpenguins/master/inst/extdata/penguins.csv")
+        .dropna()
+)
+
+penguins_raw.head()
+```
+
+```{python}
+#| id: ugSSWh8ajZNt
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 5, status: ok, timestamp: 1669652818768, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: ugSSWh8ajZNt
+#| outputId: 91f22b69-d1a6-441a-eeeb-43e1322a327d
+penguins_raw.info()
+```
+
+```{python}
+#| id: hUIbBC5Bex02
+#| colab: {base_uri: 'https://localhost:8080/', height: 903}
+#| executionInfo: {elapsed: 7216, status: ok, timestamp: 1669652825981, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: hUIbBC5Bex02
+#| outputId: 80c42967-c38f-4b87-e3e8-d65028a70a14
+import seaborn as sns
+
+species_pairplot = sns.pairplot(
+    data=penguins_raw,
+    hue="species",
+    corner=True
+)
+```
+
+```{python}
+#| id: PglxQvAmf-Oo
+#| colab: {base_uri: 'https://localhost:8080/', height: 903}
+#| executionInfo: {elapsed: 6659, status: ok, timestamp: 1669652832622, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: PglxQvAmf-Oo
+#| outputId: 21f9eb51-6771-45cf-9ee9-896ef0676c4e
+sex_pairplot = sns.pairplot(
+    data=penguins_raw,
+    hue="sex",
+    corner=True
+)
+```
+
+```{python}
+#| id: 9kDiVUGHjtZL
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 12, status: ok, timestamp: 1669652832623, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 9kDiVUGHjtZL
+#| outputId: 8a3efc93-3cf2-45ed-a696-c1ac54f52fe4
+penguins = pd.get_dummies(
+    penguins_raw.drop("species", axis=1),
+    columns=["sex", "island"],
+    drop_first=True
+)
+
+penguins.head()
+```
+
+# Pros and Cons of KMeans clustering:
+
+`+` fastest algorithm
+
+`+` works with largest amounts of data and medium number of clusters
+
+`-` assumes evenly shaped and evenly distributed (variance) clusters
+
+`-` distance based-clustering: requires scaling.
+
+`-` cannot work with categorical features: no ordinal encoding because cardinality cannot be interpreted (i.e. we cannot interpret the "distance"between two or more classes).
+
+`-` no categorical encoding either, because the algorithm suffers from the *curse of dimensionality*:
+
+> [...] in very high-dimensional spaces, Euclidean distances tend to become inflated (this is an instance of the so-called “curse of dimensionality”). Running a dimensionality reduction algorithm such as Principal component analysis (PCA) prior to k-means clustering can alleviate this problem and speed up the computations. [*source*](https://scikit-learn.org/stable/modules/clustering.html#k-means)
+
+```{python}
+#| id: urxl46wab4NX
+#| colab: {base_uri: 'https://localhost:8080/', height: 126}
+#| executionInfo: {elapsed: 672, status: ok, timestamp: 1669652841074, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: urxl46wab4NX
+#| outputId: 8e481cfc-9550-4873-86bf-4609792f8a11
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
+from sklearn.cluster import KMeans
+
+kmeans_pipeline = Pipeline(
+    [
+        ("scaler", StandardScaler()),
+        ("kmeans", KMeans(random_state=42, n_clusters=5))
+    ]
+)
+
+kmeans_pipeline
+```
+
+```{python}
+#| id: t191X8xLcyec
+#| id: t191X8xLcyec
+_ = kmeans_pipeline.fit(penguins)
+```
+
+We have to use indexing because we are accessing the `inertia_` attribute of the fitted model (not the pipeline):
+
+```{python}
+#| id: gDC6pHr5c3Se
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 2, status: ok, timestamp: 1669652845428, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: gDC6pHr5c3Se
+#| outputId: c9d907c9-8652-4128-f6d4-47d6a793b1f7
+kmeans_pipeline[1].inertia_
+```
+
+```{python}
+#| id: jVKjUXS5indU
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 211, status: ok, timestamp: 1669652860307, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: jVKjUXS5indU
+#| outputId: 114287b1-ebcd-49ee-cfa3-eb69e3c611df
+kmeans_pipeline[1].labels_
+```
+
+```{python}
+#| id: HxVy2B1wiqju
+#| colab: {base_uri: 'https://localhost:8080/', height: 726}
+#| executionInfo: {elapsed: 5235, status: ok, timestamp: 1669653072785, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: HxVy2B1wiqju
+#| outputId: fc7f375b-50eb-441b-cbc3-c34614fe84a8
+from __future__ import annotations
+
+import matplotlib.pyplot as plt
+
+def plot_clusters(
+    *,
+    preds: np.ndarray,
+    data: pd.DataFrame = penguins,
+    cols: list[str] = ['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g'],
+    ) -> plt.Figure:
+    return (
+        data
+            .filter(cols)
+            .assign(cluster = preds)
+            .pipe(
+                sns.pairplot,
+                hue="cluster",
+                corner=True
+            )
+        )
+    
+_ = plot_clusters(preds = kmeans_pipeline[1].labels_)
+```
+
+```{python}
+#| id: dcOwKpw3dGIq
+#| id: dcOwKpw3dGIq
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def make_clusters_range(max_clusters):
+    return np.arange(2, max_clusters + 1, dtype=np.int8)
+    
+
+def compute_inertia(data, max_clusters, random_state=42):
+    
+    clusters_inertia = []
+    
+    # conviene normalizzare i dati fuori dalla pipeline
+    # per non doverlo fare ogni volta durante il loop
+    scaled_data = StandardScaler().fit_transform(data)
+    
+    for cluster in make_clusters_range(max_clusters):
+        
+        kmeans = KMeans(random_state=random_state, n_clusters=cluster)
+        _ = kmeans.fit(scaled_data)
+        
+        clusters_inertia.append(kmeans.inertia_)
+        
+    return np.array(clusters_inertia)
+
+
+def plot_inertia(inertia, max_clusters):
+    
+    cluster_range = make_clusters_range(max_clusters)
+    
+    fig, ax = plt.subplots(figsize=(12,8))
+
+    ax.plot(cluster_range, inertia)
+    ax.scatter(cluster_range, inertia)
+    
+    ax.set(title=f"Inertia for {max_clusters} clusters (lower is better)", xticks=cluster_range)
+    
+    plt.show()
+
+
+def inertia_pipeline(data, max_clusters, random_state):
+    inertia = compute_inertia(data=data, max_clusters=max_clusters, random_state=random_state)
+    
+    plot_inertia(inertia, max_clusters)
+```
+
+```{python}
+#| id: 6Ne3e7-qdHL0
+#| colab: {base_uri: 'https://localhost:8080/', height: 499}
+#| executionInfo: {elapsed: 1333, status: ok, timestamp: 1669653074116, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 6Ne3e7-qdHL0
+#| outputId: 68f7aa65-b5f4-473c-f25e-323b238070b5
+inertia_pipeline(penguins, max_clusters=20, random_state=42)
+```
+
+```{python}
+#| id: XpY8fbW0dYWY
+#| id: XpY8fbW0dYWY
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+
+
+def compute_cluster_metrics(source_data, num_clusters, random_state):
+    kmeans = KMeans(num_clusters, random_state=random_state).fit(source_data)
+
+    inertia = kmeans.inertia_
+    davies_bouldin = davies_bouldin_score(source_data, kmeans.labels_)
+    silhouette_coefficient = silhouette_score(source_data, kmeans.labels_, metric="euclidean")
+    calinski_harabasz = calinski_harabasz_score(source_data, kmeans.labels_)
+
+    return inertia, davies_bouldin, silhouette_coefficient, calinski_harabasz
+
+
+def compute_metrics(data, max_clusters, random_state):
+    scaled_data = StandardScaler().fit_transform(data)
+
+    clusters_range = make_clusters_range(max_clusters)
+
+    metrics_list = [compute_cluster_metrics(scaled_data, k, random_state) for k in clusters_range]
+
+    metrics = pd.DataFrame(
+        metrics_list,
+        index=clusters_range,
+        columns=["inertia", "davies_bouldin", "silhouette_coefficient", "calinski_harabasz"]
+    )
+
+    metrics.index.name = "number_of_clusters"
+
+    return metrics
+
+
+def plot_metrics(metrics: pd.DataFrame):
+    
+    def plot_metric(metrics, col, ax):
+        
+        if col == "inertia" or col == "davies_bouldin":
+            plot_title = f"{col.replace('_', ' ').title()} (lower is better)"
+        else:
+            plot_title = f"{col.replace('_', ' ').title()} (higher is better)"
+        
+        ax.plot(metrics[col])
+        ax.scatter(metrics.index, metrics[col])
+        ax.set(title=f"{plot_title}", xticks=metrics.index)
+
+    fig, ax = plt.subplots(2, 2, figsize=(16, 16))
+    
+    for ax, metric in zip(ax.reshape(-1), metrics.columns):
+        plot_metric(metrics, metric, ax)
+        
+
+def metrics_pipeline(data, max_clusters, random_state):
+    metrics = compute_metrics(data=data, max_clusters=max_clusters, random_state=random_state)
+    
+    plot_metrics(metrics)
+```
+
+```{python}
+#| id: Zil-xeWUdZPe
+#| colab: {base_uri: 'https://localhost:8080/', height: 934}
+#| executionInfo: {elapsed: 4304, status: ok, timestamp: 1669653369696, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: Zil-xeWUdZPe
+#| outputId: d54abf86-d712-4ff2-cfd4-d468f769edd8
+metrics_pipeline(data=penguins, max_clusters=20, random_state=42)
+```
+
+# Gaussian Mixture
+
+> A Gaussian mixture model is a probabilistic model that assumes all the data points are generated from a mixture of a finite number of Gaussian distributions with unknown parameters. One can think of mixture models as generalizing k-means clustering to incorporate information about the covariance structure of the data as well as the centers of the latent Gaussians.
+
+## Pros and Cons
+
+`-` not scalable
+
+`+/-` many parameters to fit, e.g. `covariance_type`:
+
+    covariance_type : {‘full’, ‘tied’, ‘diag’, ‘spherical’}, default=’full’
+    String describing the type of covariance parameters to use. Must be one of:
+
+    ‘full’: each component has its own general covariance matrix.
+
+    ‘tied’: all components share the same general covariance matrix.
+
+    ‘diag’: each component has its own diagonal covariance matrix.
+
+    ‘spherical’: each component has its own single variance.
+
+`-` still requires convex shapes
+
+`+` does not require even shapes
+
+```{python}
+#| id: ThoEuBrCtIVc
+#| id: ThoEuBrCtIVc
+from sklearn.mixture import GaussianMixture
+
+gm_pipeline = Pipeline([
+    ("scaler", StandardScaler()),
+    ("gmm", GaussianMixture(n_components=5, covariance_type="full"))
+])
+
+_ = gm_pipeline.fit(penguins)
+```
+
+```{python}
+#| id: yw9ivDp6umk5
+#| id: yw9ivDp6umk5
+preds = gm_pipeline.predict(penguins)
+```
+
+```{python}
+#| id: GJ4j0AtRwDWR
+#| colab: {base_uri: 'https://localhost:8080/', height: 726}
+#| executionInfo: {elapsed: 5622, status: ok, timestamp: 1669653911067, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: GJ4j0AtRwDWR
+#| outputId: 3fb2f128-3528-4948-c55f-6b0434daf11e
+_ = plot_clusters(preds=preds)
+```
+
+# DBSCAN
+
+Basically works by defining *core samples* and *non-core samples*. Has two main hyperparameters: `min_samples` and `eps`, which are used to define the non-core samples.
+
+> Higher `min_samples` or lower `eps` indicate higher density necessary to form a cluster.
+
+## Pros and cons
+
+`+` Non-flat geometry and uneven cluster sizes
+
+> The DBSCAN algorithm views clusters as areas of high density separated by areas of low density. Due to this rather generic view, clusters found by DBSCAN can be any shape, as opposed to k-means which assumes that clusters are convex shaped.
+
+`+` Works with large sample sizes and medium number of clusters
+
+`+` Can be configured to perform outlier removal.
+
+`-` Distance-based.
+
+`-` Transductive: basically, it cannot be used to classify new data (kmeans is inductive).
+
+> The DBSCAN algorithm is deterministic, always generating the same clusters when given the same data in the same order. However, the results can differ when data is provided in a different order.
+
+`-` slow default implementation in sklearn. using `OPTICS` and passing the argument `extract_dbscan` is recommended.
+
+```{python}
+#| id: tcHXS_2Sq3LX
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 1108, status: ok, timestamp: 1669654260579, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: tcHXS_2Sq3LX
+#| outputId: 1925afde-e249-4ed6-c10e-cde4a1c0a08d
+from sklearn.cluster import DBSCAN
+
+db_pipeline = Pipeline(
+    [
+        ("scaler", StandardScaler()),
+        ("dbscan", DBSCAN(eps=.0000000003, min_samples=2))
+    ]
+)
+
+db_results = db_pipeline.fit(penguins)
+
+set(db_results[1].labels_)
+```
+
+# Exercises
+
+* Remove the dummy variables from `penguins` and fit the KMeans: what do you observe?
+* Try different combinations of `covariance_type` for the GMM model
+
+# Next time
+
+* Plotting GMMs
+* How to choose the number of components

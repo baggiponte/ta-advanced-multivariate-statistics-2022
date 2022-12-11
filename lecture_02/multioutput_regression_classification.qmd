@@ -1,0 +1,606 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .qmd
+      format_name: quarto
+      format_version: '1.0'
+      jupytext_version: 1.14.2
+  kernelspec:
+    display_name: Python 3
+    name: python3
+    language: python
+---
+
+# Advanced Multivariate Statistics
+# Lecture 2 - Multi-Output Regression and Classification in `scikit-learn`
+
+* Implemented in the `mutliclass` and `multioutput` modules
+
+> The modules in this section implement meta-estimators, which require a base estimator to be provided in their constructor. Meta-estimators extend the functionality of the base estimator to support multi-learning problems, which is accomplished by transforming the multi-learning problem into a set of simpler problems, then fitting one estimator per problem.
+
+![multiclass-and-multioutput](https://scikit-learn.org/stable/_images/multi_org_chart.png)
+
+```{python}
+#| id: yKmFp83L8nF-
+#| executionInfo: {elapsed: 5, status: ok, timestamp: 1669650333585, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: yKmFp83L8nF-
+from sklearn import set_config
+set_config(display='diagram')
+```
+
+## Display the `MultiOutputClassifier` on Randomly Generated Data
+
+### Random Data Generation
+
+```{python}
+#| id: t_EZqoSEyjE9
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 792, status: ok, timestamp: 1669650334373, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: t_EZqoSEyjE9
+#| outputId: 0ae096e7-68ac-4be3-8a7b-a4873193de19
+import numpy as np
+
+from sklearn.datasets import make_classification
+from sklearn.utils import shuffle
+
+X, y1 = make_classification(
+    n_samples=1000,
+    n_features=10,
+    n_informative=8,
+    n_classes=3,
+    random_state=42
+    )
+
+y2 = shuffle(y1, random_state=1)
+y3 = shuffle(y1, random_state=2)
+
+Y = np.vstack((y1, y2, y3)).T
+
+Y[:5]
+```
+
+### Train-test split
+
+```{python}
+#| id: hRAfHwkK2jvd
+#| executionInfo: {elapsed: 8, status: ok, timestamp: 1669650334376, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: hRAfHwkK2jvd
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.25, random_state=42, shuffle=True
+)
+```
+
+### LogisticRegression Pipeline & Scoring
+
+```{python}
+#| id: W12nCHsMyh9X
+#| colab: {base_uri: 'https://localhost:8080/', height: 167}
+#| executionInfo: {elapsed: 6, status: ok, timestamp: 1669650334376, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: W12nCHsMyh9X
+#| outputId: 686565a9-4215-4ad8-e90a-6792224d4e2d
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
+logreg_pipeline = Pipeline(
+    steps = [
+        ("scaling", StandardScaler()),
+        ("multi-logreg", MultiOutputClassifier(LogisticRegressionCV()))
+    ]
+)
+
+logreg_pipeline
+```
+
+```{python}
+#| id: EbB8eY7J8wt-
+#| executionInfo: {elapsed: 1666, status: ok, timestamp: 1669650336037, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: EbB8eY7J8wt-
+_ = logreg_pipeline.fit(X_train, Y_train)
+```
+
+```{python}
+#| id: D-qZWdwU81vP
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 6, status: ok, timestamp: 1669650336037, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: D-qZWdwU81vP
+#| outputId: 6b71c511-ae54-42e4-8850-86cff597349f
+logreg_pipeline.score(X_test, Y_test)
+```
+
+```{python}
+#| id: SgJgyIDe-6eN
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 4, status: ok, timestamp: 1669650336037, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: SgJgyIDe-6eN
+#| outputId: a71d748b-ab17-42a9-d56b-bdd76f585e99
+logreg_pipeline.predict(X_test)[:5]
+```
+
+```{python}
+#| id: mYTiSGMA-E_J
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 4, status: ok, timestamp: 1669650336038, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: mYTiSGMA-E_J
+#| outputId: 0d6ca450-3905-4b44-c1f3-e2f80833fd64
+probabs = logreg_pipeline.predict_proba(X_test) # this is a list of three arrays!
+
+np.array([probabs[mclass][:5] for mclass in range(0,3)])
+```
+
+### Another Pipeline
+
+```{python}
+#| id: ufql-ZoXCPJw
+#| executionInfo: {elapsed: 15367, status: ok, timestamp: 1669650351402, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: ufql-ZoXCPJw
+from sklearn.ensemble import HistGradientBoostingClassifier
+
+rf_pipeline = Pipeline(
+    steps=[
+        ("scaler", StandardScaler()),
+        ("gradient_boosted_tree", MultiOutputClassifier(HistGradientBoostingClassifier(random_state=42)))
+    ]
+)
+
+_ = rf_pipeline.fit(X_train, Y_train)
+```
+
+```{python}
+#| id: opXiMn0zD0l8
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 29831, status: ok, timestamp: 1669650381216, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: opXiMn0zD0l8
+#| outputId: f52820ef-d27f-47e6-fd25-0c1261a5a9cf
+from sklearn.model_selection import cross_validate
+
+cv_results = cross_validate(rf_pipeline, X_train, Y_train, scoring="neg_log_loss")
+```
+
+```{python}
+#| id: OhPyD7TxLZxf
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 13263, status: ok, timestamp: 1669650394466, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: OhPyD7TxLZxf
+#| outputId: 7169c7c8-4366-44d0-ff70-d0fe5119a35a
+cv_results = cross_validate(rf_pipeline, X_train, Y_train, verbose=True)
+```
+
+```{python}
+#| id: 2fOViTvFEDKt
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 8, status: ok, timestamp: 1669650394467, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 2fOViTvFEDKt
+#| outputId: 32c7d44c-c533-404c-aeec-56016a362bb3
+cv_results
+```
+
+```{python}
+#| id: kbAUr5n5Cx-X
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 6, status: ok, timestamp: 1669650394467, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: kbAUr5n5Cx-X
+#| outputId: 92e459be-b87b-4b5d-c89c-7fecac959891
+rf_pipeline.score(X_test, Y_test)
+```
+
+## Code Along: Titanic Dataset
+
+1. Load the titanic dataset using `sklearn`'s `fetch_openml`:
+
+```{python}
+#| id: IyynYT4q6VM6
+#| executionInfo: {elapsed: 15081, status: ok, timestamp: 1669650409544, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: IyynYT4q6VM6
+from sklearn.datasets import fetch_openml
+
+bunch = fetch_openml("titanic", version=1)
+
+data = bunch.frame
+```
+
+```{python}
+#| id: i3T8GCsN8o5Q
+#| colab: {base_uri: 'https://localhost:8080/', height: 337}
+#| executionInfo: {elapsed: 581, status: ok, timestamp: 1669650410110, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: i3T8GCsN8o5Q
+#| outputId: ee31e0fd-d21d-48b9-b12b-ec02d57197cd
+data.head()
+```
+
+2. Inspect the columns and analyse the data
+
+```{python}
+#| id: GFlpnd2D_ICo
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 11, status: ok, timestamp: 1669650410111, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: GFlpnd2D_ICo
+#| outputId: 7da12db4-b08d-4cfe-f3e5-1a945ecacbdd
+data.info()
+```
+
+Here is a gloxary of the columns:
+
+* `survival`: 0 = no, 1 = yes
+* `pclass`: 1 = 1st, 2 = 2nd, 3 = 3rd
+* `name`: passenger name
+* `sex`: passenger sex (`male`, `female`)
+* `age`: age in years
+* `sibsp` = number of sibilings / spouses abroad
+* `parch` = number of parents / children abroad
+* `ticket` = ticket number (can be the same for members of the same families)
+* `fare` = ticket cost
+* `cabin` = cabin number
+* `embarked` = port of embrarkation: `C` for Chernourg, `Q` for Queenstown, `S` for Southhampton
+* `boat` = lifeboat number (if survived)
+* `body` = body number (if not survive and body was recovered)
+* `home.dest` = supposed destination
+* `survived` = whether the passenger survived
+
+We can see that the data types are messy. Fortunatley, we can use the `DataFrame.convert_dtypes()` method to automatically cast them in more appropriate pandas datatypes:
+
+```{python}
+#| id: 9EGLEpPOHm2s
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 9, status: ok, timestamp: 1669650410111, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 9EGLEpPOHm2s
+#| outputId: 77e8d4f9-298f-4044-f0fe-27ac35707202
+data.convert_dtypes().info()
+```
+
+Note that the memory consumption changes as well! We can now use these information to select our final data.
+
+```{python}
+#| id: j7px9cTa_POa
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 7, status: ok, timestamp: 1669650410111, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: j7px9cTa_POa
+#| outputId: 26a630e2-fef1-48a3-fe93-fe5d869796c8
+import pandas as pd
+
+titanic = (
+    data
+    .convert_dtypes()
+    .assign(has_family = lambda df: df.filter(["sibsp", "parch"]).any(axis="columns").astype("category"))
+    .drop(columns=["name", "cabin", "sibsp", "parch", "ticket", "boat", "body", "home.dest"])
+    .dropna()
+)
+
+titanic.head()
+```
+
+```{python}
+#| id: AWj8wD66PVYM
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 7, status: ok, timestamp: 1669650410111, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: AWj8wD66PVYM
+#| outputId: c1df5ce4-d5ea-4694-a3aa-987e4fad3601
+titanic.info()
+```
+
+To explore the relationship between variables, we can use a pairplot and specify a categorical variable as a `hue` parameter:
+
+```{python}
+#| id: nr8c11Rk6VqL
+#| colab: {base_uri: 'https://localhost:8080/', height: 550}
+#| executionInfo: {elapsed: 4117, status: ok, timestamp: 1669650414223, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: nr8c11Rk6VqL
+#| outputId: 9b13466c-58e1-4577-f7e7-ac4b603bfa96
+import seaborn as sns
+
+_ = sns.pairplot(data=titanic, hue="survived", corner=True)
+```
+
+While versatile, this method cannot deal with categorical variables, we can use an `OrdinalEncoder` to transform the data:
+
+```{python}
+#| id: IHdb7vNQOtOq
+#| executionInfo: {elapsed: 5, status: ok, timestamp: 1669650414224, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: IHdb7vNQOtOq
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.compose import make_column_selector as selector
+from sklearn.compose import ColumnTransformer
+
+cat_col_selector = selector(dtype_include="category")
+quant_cols_selector = selector(dtype_exclude="category")
+
+cat_cols = cat_col_selector(titanic)
+quant_cols = quant_cols_selector(titanic)
+
+encoder_transformer = ColumnTransformer(
+    [("ordinal_encoder", OrdinalEncoder(), cat_cols)],
+    remainder = "passthrough"
+)
+```
+
+Pay attention to the column ordering:
+
+```{python}
+#| id: RVBBZVEB7RhB
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 3, status: ok, timestamp: 1669650528097, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: RVBBZVEB7RhB
+#| outputId: 8267a4df-05d7-4f97-fa26-d8a5dcf8d5a2
+titanic.head()
+```
+
+```{python}
+#| id: 6BAPM5Cf65Iv
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 3, status: ok, timestamp: 1669650529626, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 6BAPM5Cf65Iv
+#| outputId: ef04e416-5b71-44f4-d308-ae0d6af779d9
+pd.DataFrame(encoder_transformer.fit_transform(titanic), columns=cat_cols + quant_cols).head()
+```
+
+```{python}
+#| id: ev28nokmR5Hs
+#| colab: {base_uri: 'https://localhost:8080/', height: 1000}
+#| executionInfo: {elapsed: 12262, status: ok, timestamp: 1669590356332, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: ev28nokmR5Hs
+#| outputId: 28f968ad-2d07-4bef-91d6-56df2d205145
+_ = (
+    pd.DataFrame(
+    data=encoder_transformer.fit_transform(titanic),
+    columns=cat_cols + quant_cols
+    )
+    .convert_dtypes()
+    .astype({"age": "Float32", "fare": "Float32"})
+    .pipe(
+        sns.pairplot,
+        hue="survived",
+        corner=True
+        )
+)
+```
+
+```{python}
+#| id: 6QZeCjzyCHat
+#| colab: {base_uri: 'https://localhost:8080/', height: 537}
+#| executionInfo: {elapsed: 436, status: ok, timestamp: 1669590356745, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: 6QZeCjzyCHat
+#| outputId: 075c6e27-2b60-4b40-e346-13aa8515e762
+import matplotlib.pyplot as plt
+
+def heatmap_plot(data):
+
+    corr = data.corr()
+
+    # Generate a mask for the upper triangle
+    mask = np.triu(np.ones_like(corr, dtype=bool))
+
+    # Set up the matplotlib figure
+    f, ax = plt.subplots(figsize=(11, 9))
+
+    # Generate a custom diverging colormap
+    cmap = sns.diverging_palette(230, 20, as_cmap=True)
+
+    # Draw the heatmap with the mask and correct aspect ratio
+    return sns.heatmap(
+        corr,
+        mask=mask,
+        cmap=cmap,
+        vmax=.3,
+        center=0,
+        square=True,
+        linewidths=.5,
+        cbar_kws={"shrink": .5}
+        )
+    
+_ = heatmap_plot(titanic)
+```
+
+```{python}
+#| id: YplU97zEC7ty
+#| id: YplU97zEC7ty
+target_cols = ["pclass", "survived"]
+
+
+data = (
+    titanic
+    .drop(columns=target_cols)
+    # dtypes conversion is necessary because sklearn is not compatible with categories yet
+    .astype({"sex": "string", "embarked": "string", "has_family": "bool"})
+)
+
+target = (
+    titanic
+    .filter(target_cols)
+    .astype({"pclass": "string", "survived": "string"})
+)
+```
+
+3. Split in train and test set
+
+```{python}
+#| id: sT2zgOlh6WEl
+#| id: sT2zgOlh6WEl
+from sklearn.model_selection import train_test_split
+
+data_train, data_test, target_train, target_test = train_test_split(
+    data, target, test_size=0.25
+)
+```
+
+```{python}
+#| id: tQBHx_H1DPN3
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 26, status: ok, timestamp: 1669590356746, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: tQBHx_H1DPN3
+#| outputId: 4cc4b9b4-4da3-4853-facd-714ede7733e2
+data_train.info()
+```
+
+```{python}
+#| id: IUlOBacpFrQ2
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 22, status: ok, timestamp: 1669590356747, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: IUlOBacpFrQ2
+#| outputId: ff2fda23-55d0-4790-c013-abe8de424a40
+target_train.info()
+```
+
+```{python}
+#| id: THcMg0DmFuKz
+#| colab: {base_uri: 'https://localhost:8080/', height: 206}
+#| executionInfo: {elapsed: 20, status: ok, timestamp: 1669590356747, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: THcMg0DmFuKz
+#| outputId: 108505d0-cd16-4333-e597-91e29866bfe5
+target_train.head()
+```
+
+4. Column preprocessing with `make_column_selector`
+
+```{python}
+#| id: f7pEZ-bL6WXX
+#| id: f7pEZ-bL6WXX
+from sklearn.compose import make_column_selector as selector
+
+cat_column_types = ["object", "category"]
+
+categorical_column_selector = selector(dtype_include=cat_column_types)
+quantitative_columns_selector = selector(dtype_exclude=cat_column_types)
+
+categorical_cols = categorical_column_selector(data)
+quantitative_cols = quantitative_columns_selector(data)
+```
+
+```{python}
+#| id: rxJBafC1GsA1
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 20, status: ok, timestamp: 1669590356748, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: rxJBafC1GsA1
+#| outputId: 8425f890-8913-4507-ed0c-e1c342778df7
+categorical_cols, quantitative_cols
+```
+
+```{python}
+#| id: EdOvfn4MEWgL
+#| id: EdOvfn4MEWgL
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
+from sklearn.compose import ColumnTransformer
+
+scaler = StandardScaler()
+onehot_enc = OneHotEncoder(sparse=False)
+ordinal_enc = OrdinalEncoder()
+
+logreg_col_transformer = ColumnTransformer(
+    transformers = [
+        ("quantitative_preprocessor", scaler, quantitative_cols),
+        ("categorical_preprocessor", onehot_enc, categorical_cols),
+    ]
+)
+
+rf_col_transformer = ColumnTransformer(
+    transformers = [
+        ("quantitative_preprocessor", scaler, quantitative_cols),
+        ("categorical_preprocessor", ordinal_enc, categorical_cols),
+    ]
+)
+```
+
+5. Baseline estimator with `DummyClassifier`
+
+```{python}
+#| id: CAZ5acAeGF9K
+#| id: CAZ5acAeGF9K
+...
+```
+
+6. Baseline estimator with `LogisticRegression`
+
+```{python}
+#| id: Cxz9mWL4DnZf
+#| colab: {base_uri: 'https://localhost:8080/', height: 233}
+#| executionInfo: {elapsed: 351, status: ok, timestamp: 1669591083603, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: Cxz9mWL4DnZf
+#| outputId: cdc1db97-25a2-4c08-abc5-f1528fe80cda
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.pipeline import Pipeline
+
+logreg_pipeline = Pipeline(
+    steps = [
+        ("preprocessor", logreg_col_transformer),
+        ("logreg", MultiOutputClassifier(LogisticRegressionCV()))
+    ]
+)
+
+logreg_pipeline
+```
+
+```{python}
+#| id: WncZCYLKGjLQ
+#| id: WncZCYLKGjLQ
+_ = logreg_pipeline.fit(data_train, target_train)
+```
+
+7. Cross Validation
+
+```{python}
+#| id: V-vMhHXFXso5
+#| id: V-vMhHXFXso5
+logreg_cv_res = cross_validate(logreg_pipeline, data_train, target_train)
+```
+
+```{python}
+#| id: xJ9GuuRYYn3c
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 232, status: ok, timestamp: 1669591229179, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: xJ9GuuRYYn3c
+#| outputId: f67a9328-fa17-4702-abb3-1b12057c5343
+print(
+    f"{logreg_cv_res['test_score'].mean():0.2f}",
+    "+/- " 
+    f"{logreg_cv_res['test_score'].std():0.2f}"
+)
+```
+
+```{python}
+#| id: phFhaf0OUyyC
+#| colab: {base_uri: 'https://localhost:8080/', height: 233}
+#| executionInfo: {elapsed: 8, status: ok, timestamp: 1669591238968, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: phFhaf0OUyyC
+#| outputId: fb511365-86a0-4034-c059-c87ddbda1233
+from sklearn.ensemble import HistGradientBoostingClassifier
+
+rf_pipeline = Pipeline(
+    steps = [
+        ("preprocessor", rf_col_transformer),
+        ("logreg", MultiOutputClassifier(HistGradientBoostingClassifier()))
+    ]
+)
+
+rf_pipeline
+```
+
+```{python}
+#| id: Y80o9NR8U-SI
+#| colab: {base_uri: 'https://localhost:8080/'}
+#| executionInfo: {elapsed: 6268, status: ok, timestamp: 1669591294108, user: {displayName: Luca Baggi, userId: 05336695453102948854}, user_tz: -60}
+#| id: Y80o9NR8U-SI
+#| outputId: a6f34c57-9d6c-42a9-898a-66acc6daaa3f
+rf_cv_res = cross_validate(rf_pipeline, data_train, target_train)
+
+print(
+    f"{rf_cv_res['test_score'].mean():0.2f}",
+    "+/- " 
+    f"{rf_cv_res['test_score'].std():0.2f}"
+)
+```
+
+8. Hyperparameter Tuning
+
+```{python}
+#| id: 5EJj4M2NOC9T
+#| id: 5EJj4M2NOC9T
+...
+```
+
+## References
+
+* [scikit-learn docs](https://colab.research.google.com/drive/1lvFxCtWswt_C2ruZczA4mH_RZYC8DlGa?authuser=2#scrollTo=Kk1gPwCrykIz)
