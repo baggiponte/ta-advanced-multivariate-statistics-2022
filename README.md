@@ -28,8 +28,3 @@
 * [Gaussian Mixture](https://scikit-learn.org/stable/modules/mixture.html#gaussian-mixture)
 * [GMM Covariances](https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_covariances.html#sphx-glr-auto-examples-mixture-plot-gmm-covariances-py)
 * [Gaussian Mixture Model Selection](https://scikit-learn.org/stable/auto_examples/mixture/plot_gmm_selection.html#sphx-glr-auto-examples-mixture-plot-gmm-selection-py)
-
-### Lecture 5
-
-* [Variational Based Gaussian Mixture](https://scikit-learn.org/stable/modules/mixture.html#variational-bayesian-gaussian-mixture)
-* [Gaussian Mixture Model](https://www.pymc.io/projects/examples/en/latest/mixture_models/gaussian_mixture_model.html)
